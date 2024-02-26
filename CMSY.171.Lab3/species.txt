@@ -1,0 +1,6 @@
+Amphibian
+Bird
+Fish
+Mammal
+Marsupial
+Reptile
