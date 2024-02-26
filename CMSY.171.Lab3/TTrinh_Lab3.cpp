@@ -1,5 +1,5 @@
-// MAKE SURE FILEPATH IS CORRECT AND IS A CONSTANT
-// 
+// Program written by Tommy Trinh
+// February 25, 2024
 // This program simulates a database that can read and write to
 // text and binary files
 #include <iostream>
@@ -13,6 +13,8 @@
 using namespace std;
 
 // declare constants
+const char ANIMAL_FILE[] = "c:\\test\\animal.dat",	// location of animal.dat
+SPECIES_FILE[] = "c:\\test\\species.txt";			// location of species.txt
 const int
 MIN_COUNT = 0,			// minimum number of animals
 ADD_CHOICE = 1,			// choice to add an animal
@@ -28,7 +30,7 @@ TYPE_SIZE = 25;			// size of the animal type field
 struct species
 {
 	char typeAnimal[TYPE_SIZE] = "none";	// stores type of animal
-	char species[TYPE_SIZE];				// species of animal
+	char typeSpecies[TYPE_SIZE]="none";		// species of animal
 	int numAnimal = 0;						// stores number of animals
 	bool endangered = false;				// flag for endangered
 };
@@ -41,9 +43,13 @@ void dataDisplay(vector<species>);		// displays data to user
 void endangeredDisplay(const vector<species>);// displays endangered animals
 void selectionSort(vector<species>&);	// sorts an array by selection sorting
 void vectorSwap(species&, species&);	// swaps two vector elements
-void animalSearch(vector<species>&);	// sorts and then searches for an animal
+void animalSearch(vector<species>&, fstream&,	// sorts and then searches for an animal
+	const vector<string>);
 void readAnimal(vector<species>&, fstream&);// reads data from a file into memory
 void readSpecies(vector<string>&, fstream&);// reads data from a file into memory
+void writeRecord(fstream&, species, int);	// writes a record to file
+void getUpdateData(species&, const vector<string>);	// get data for updating
+void updateRecord(fstream&, species, species);// updates a record in the search function
 bool positiveValid(int);				// validates a number is positive
 bool menuValid(int);					// validates menu is between first and quit
 bool noneValid(const char name[]);		// validates user input is not none
@@ -60,7 +66,7 @@ int main()
 	vector<string> speciesType;		// initialize a new vector for species
 
 	// Open the animal.dat file in read/write/binary mode
-	fstream animalFile("animal.dat", ios::in | ios::out | ios::binary);
+	fstream animalFile(ANIMAL_FILE, ios::in | ios::out | ios::binary);
 
 	// If the file was opened, read the contents of animal.dat into memory.
 	// Otherwise, give an error and end the program
@@ -73,7 +79,7 @@ int main()
 		readAnimal(animalPen, animalFile);
 
 	// open the species.txt in read mode
-	fstream speciesFile("species.txt", ios::in);
+	fstream speciesFile(SPECIES_FILE, ios::in);
 	
 	// If the file was opened, read the contents of species.txt into memory.
 	// Otherwise, give an error and end the program
@@ -84,6 +90,9 @@ int main()
 	}
 	else
 		readSpecies(speciesType, speciesFile);
+	// close the files
+	animalFile.close();
+	speciesFile.close();
 
 	// call header
 	header();
@@ -118,7 +127,7 @@ int main()
 		}
 		case SEARCH_CHOICE:
 		{
-			animalSearch(animalPen);
+			animalSearch(animalPen, animalFile, speciesType);
 			break;
 		}
 		case ENDANGERED_CHOICE:
@@ -142,9 +151,6 @@ int main()
 
 	// clear the vector
 	animalPen.clear();
-	// close the files
-	animalFile.close();
-	speciesFile.close();
 
 	// goodbye message
 	cout << "\nThank you for using the CMSY 171 Animal Count Program\n\n";
@@ -218,48 +224,6 @@ bool exitProgram()
 		return true;
 }
 
-// Reads structure data from a file and copies it into memory
-void readAnimal(vector<species>& animalPen, fstream &animalFile)
-{
-	species tempAnimal={"","",0,false},	// temporary structure for push back
-		tempFile;		// temporary structure for file
-
-	// read the first record
-	animalFile.read(reinterpret_cast<char*>(&tempFile), sizeof(tempFile));
-	while (!animalFile.eof())
-	{
-		// c strings are arrays so go through them one index at a time
-		for (int index = 0; index < strlen(tempFile.typeAnimal); index++)
-			tempAnimal.typeAnimal[index] = tempFile.typeAnimal[index];
-		// same for species, one index at a time
-		for (int index = 0; index < strlen(tempFile.species); index++)
-			tempAnimal.species[index] = tempFile.species[index];
-		// copy over the count and endangered flag
-		tempAnimal.numAnimal = tempFile.numAnimal;
-		tempAnimal.endangered = tempFile.endangered;
-		// push back the vector with a new entry
-		animalPen.push_back(tempAnimal);
-		// clear the temp structure in preparation for the next loop
-		tempAnimal = { "","",0,false };
-		// read the next record
-		animalFile.read(reinterpret_cast<char*>(&tempFile), sizeof(tempFile));
-	}
-}
-
-// Read species data from a file and copy it into memory
-void readSpecies(vector<string>& speciesType, fstream& speciesFile)
-{
-	string temp;	// temp string
-	// read the first record
-	getline(speciesFile, temp, '\n');
-	// if successful, popback into vector and continue
-	while (speciesFile)
-	{
-		speciesType.push_back(temp);
-		getline(speciesFile,temp,'\n');
-	}
-}
-
 // lets user enter data on the animal types, if user enters none, quit out
 // Added "&" to the argument because otherwise the changes were local
 // and did not appear to the dataDisplay function
@@ -305,10 +269,10 @@ void dataEntry(vector<species>& animalPen, const vector<string>speciesType,
 				{
 					if (isalpha(speciesType[stoi(input) - 1][index]))
 					{
-						newAnimal.species[index] = speciesType[stoi(input) - 1][index];
+						newAnimal.typeSpecies[index] = speciesType[stoi(input) - 1][index];
 					}
 					else
-						newAnimal.species[index] = '\0';
+						newAnimal.typeSpecies[index] = '\0';
 				}
 
 				cout << "Enter the animal type's count: ";
@@ -320,7 +284,7 @@ void dataEntry(vector<species>& animalPen, const vector<string>speciesType,
 			else
 				newAnimal.endangered = false;
 			// write data from temp struct to animal.dat file
-			animalFile.write(reinterpret_cast<char*>(&newAnimal), sizeof(newAnimal));
+			writeRecord(animalFile, newAnimal, -1);
 			// Add data from temp struct to permanent struct
 			animalPen.push_back(newAnimal);
 		}
@@ -358,7 +322,7 @@ void dataDisplay(vector<species> animals)
 		for (int index = 0; index < animals.size(); index++)
 		{
 			cout << "\nAnimal: " << animals.at(index).typeAnimal << endl;
-			cout << "The species is: " << animals.at(index).species << endl;
+			cout << "The species is: " << animals.at(index).typeSpecies << endl;
 			cout << "Has a count of: " << animals.at(index).numAnimal << endl;
 
 			if (animals.at(index).endangered)
@@ -423,9 +387,10 @@ void vectorSwap(species& a, species& b)
 // Sort an ADT and then asks user for a name to search for.
 // Then searches for an animal name using
 // a binary search approach
-void animalSearch(vector<species>& animal)
+void animalSearch(vector<species>& animal,fstream &aFile,vector<string>speciesList)
 {
 	char temp[TYPE_SIZE];		//temporary input holder
+	species newAnimal;
 	// first sort by alphabetical order
 	selectionSort(animal);
 	// ask for the name to search for
@@ -459,15 +424,148 @@ void animalSearch(vector<species>& animal)
 	{
 		cout << "Animal was found:\n"
 			<< "Animal: " << animal.at(position).typeAnimal << endl
+			<< "The species is: " << animal.at(position).typeSpecies << endl
 			<< "Has a count of: " << animal.at(position).numAnimal << endl;
 		if (animal.at(position).endangered)
 			cout << "This animal is endangered!!\n\n";
 		else
 			cout << "This animal is not endangered!!\n\n";
+
+		// ask user if they want to update record
+		cout << "Do you want to update this record? (y/n): ";
+		cin.getline(temp, TYPE_SIZE);
+		while (toupper(temp[0]) != 'Y' && toupper(temp[0]) != 'N')
+		{
+			cout << "Please enter Y or N: ";
+			cin.getline(temp, TYPE_SIZE);
+		}
+		if (toupper(temp[0]) == 'Y')
+		{
+			getUpdateData(newAnimal,speciesList);
+			writeRecord(aFile, newAnimal, position);
+			animal.at(position) = newAnimal;
+		}
 	}
 	else
 	{
 		cout << "We could not find your animal in the database at this time. "
 			<< "Please add the animal to the database.\n\n";
 	}
+}
+
+// Reads structure data from a file and copies it into memory
+void readAnimal(vector<species>& animalPen, fstream& animalFile)
+{
+	species tempAnimal = { "","",0,false },	// temporary structure for push back
+		tempFile;		// temporary structure for file
+
+	// read the first record
+	animalFile.read(reinterpret_cast<char*>(&tempFile), sizeof(tempFile));
+	while (!animalFile.eof())
+	{
+		// c strings are arrays so go through them one index at a time
+		for (int index = 0; index < strlen(tempFile.typeAnimal); index++)
+			tempAnimal.typeAnimal[index] = tempFile.typeAnimal[index];
+		// same for species, one index at a time
+		for (int index = 0; index < strlen(tempFile.typeSpecies); index++)
+			tempAnimal.typeSpecies[index] = tempFile.typeSpecies[index];
+		// copy over the count and endangered flag
+		tempAnimal.numAnimal = tempFile.numAnimal;
+		tempAnimal.endangered = tempFile.endangered;
+		// push back the vector with a new entry
+		animalPen.push_back(tempAnimal);
+		// clear the temp structure in preparation for the next loop
+		tempAnimal = { "","",0,false };
+		// read the next record
+		animalFile.read(reinterpret_cast<char*>(&tempFile), sizeof(tempFile));
+	}
+}
+
+// Read species data from a file and copy it into memory
+void readSpecies(vector<string>& speciesType, fstream& speciesFile)
+{
+	string temp;	// temp string
+	// read the first record
+	getline(speciesFile, temp, '\n');
+	// if successful, popback into vector and continue
+	while (speciesFile)
+	{
+		speciesType.push_back(temp);
+		getline(speciesFile, temp, '\n');
+	}
+}
+
+// write record
+void writeRecord(fstream& file, species animal, int recNum)
+{
+	long startRecordOffset;
+
+	// if record number is less than 0, append a record to the end of file
+	if (recNum>=0)
+	{
+		file.open(ANIMAL_FILE, ios::out | ios::binary);
+		// set the initial offset if not zero
+		startRecordOffset = recNum * sizeof(species);
+		file.seekp(startRecordOffset, ios::beg);
+	}
+	else // append to the end of the file
+	{
+		file.open(ANIMAL_FILE, ios::app | ios::binary);
+	}
+	if (!file)	// if cannot open, give error
+	{
+		cout << "Error - cannot open Animal.dat\n\n";
+		return;
+	}
+	
+	// write the record
+	file.write(reinterpret_cast<char*>(&animal), sizeof(species));
+	file.close();
+}
+
+// get update data
+void getUpdateData(species& newEntry, const vector<string>speciesType)
+{
+	string input;	// temp variable for input
+	// get name
+	cout << "Please enter an animal name: ";
+	cin.getline(newEntry.typeAnimal, TYPE_SIZE);
+	// get species
+	cout << "\nSelect the species from the list:\n";
+	for (int index = 0; index < speciesType.size(); index++)
+		cout << index + 1 << ". " << speciesType[index] << endl;
+	cout << "Please enter number of species here: ";
+	getline(cin, input);
+	while (stoi(input) < 1 || stoi(input) > speciesType.size())
+	{ // validate it is between 1 and max
+		cout << "Error - entry must be a valid option. Try again: ";
+		getline(cin, input);
+	}
+	// copy the species into the struct
+	for (int index = 0; index < speciesType[stoi(input) - 1].length(); index++)
+	{
+		if (isalpha(speciesType[stoi(input) - 1][index]))
+		{
+			newEntry.typeSpecies[index] = speciesType[stoi(input) - 1][index];
+		}
+		else
+			newEntry.typeSpecies[index] = '\0';
+	}
+	do
+	{
+		cout << "Enter the animal type's count: ";
+		getline(cin, input);
+	} while (positiveValid(stoi(input)));
+
+		newEntry.numAnimal = stoi(input);
+		if (newEntry.numAnimal < ENDANGERED_POP)
+			newEntry.endangered = true;
+		else
+			newEntry.endangered = false;
+}
+
+// update record
+void recordUpdate(fstream& file, species oldEntry, species newEntry)
+{
+	return;
 }
