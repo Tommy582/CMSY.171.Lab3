@@ -49,7 +49,7 @@ void readAnimal(vector<species>&, fstream&);// reads data from a file into memor
 void readSpecies(vector<string>&, fstream&);// reads data from a file into memory
 void writeRecord(fstream&, species, int);	// writes a record to file
 void getUpdateData(species&, const vector<string>);	// get data for updating
-void updateRecord(fstream&, species, species);// updates a record in the search function
+void recordUpdate(fstream&, species, species);// updates a record in the search function
 bool positiveValid(int);				// validates a number is positive
 bool menuValid(int);					// validates menu is between first and quit
 bool noneValid(const char name[]);		// validates user input is not none
@@ -442,7 +442,7 @@ void animalSearch(vector<species>& animal,fstream &aFile,vector<string>speciesLi
 		if (toupper(temp[0]) == 'Y')
 		{
 			getUpdateData(newAnimal,speciesList);
-			writeRecord(aFile, newAnimal, position);
+			recordUpdate(aFile, animal[position], newAnimal);
 			animal.at(position) = newAnimal;
 		}
 	}
@@ -503,7 +503,7 @@ void writeRecord(fstream& file, species animal, int recNum)
 	// if record number is less than 0, append a record to the end of file
 	if (recNum>=0)
 	{
-		file.open(ANIMAL_FILE, ios::out | ios::binary);
+		file.open(ANIMAL_FILE, ios::in | ios::out | ios::binary);
 		// set the initial offset if not zero
 		startRecordOffset = recNum * sizeof(species);
 		file.seekp(startRecordOffset, ios::beg);
@@ -567,5 +567,40 @@ void getUpdateData(species& newEntry, const vector<string>speciesType)
 // update record
 void recordUpdate(fstream& file, species oldEntry, species newEntry)
 {
+	// temp variables
+	species temp;
+	bool found = false;
+	long readPosition;
+	long writePosition;
+
+	// open the file for writing
+	file.open(ANIMAL_FILE, ios::in | ios::out | ios::binary);
+
+	// read the first entry
+	file.read(reinterpret_cast<char*>(&temp), sizeof(temp));
+
+	// compare names until match with old entry is found
+	while (!found && !file.eof())
+	{
+		if (!strcmp(temp.typeAnimal, oldEntry.typeAnimal))
+		{
+			found = true;
+			// get the read position
+			readPosition = file.tellg();
+		}
+		else
+		// read next
+		file.read(reinterpret_cast<char*>(&temp), sizeof(temp));
+	}
+	// clear eof flag
+	file.clear();
+	// calculate the write position, move there, write new data
+	writePosition = (readPosition - sizeof(species));
+	file.seekg(writePosition, ios::beg);
+	file.write(reinterpret_cast<char*>(&newEntry), sizeof(species));
+
+	// close the file
+	file.close();
+
 	return;
 }
